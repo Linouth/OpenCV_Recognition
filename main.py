@@ -5,9 +5,9 @@ import time
 import sys
 
 
-min_area = 200
+# min_area = 200
 # area_range = (6.5, 8.5)
-area_range = (10.8, 12.2)
+area_range = (13, 21)
 
 debug = False
 out = None
@@ -53,26 +53,11 @@ def hasParent(comp):
     return True
 
 
-# DEPRECATED
-def findNextShape(comp, comps):
-    c = cv2.convexHull(comp[0])
-    area_old = cv2.contourArea(c)
-
-    if hasParent(comp):
-        p = comps[comp[1][3]]
-        area_parent = cv2.contourArea(p[0])
-
-        if area_parent/area_old < 1.1:
-            return findNextShape(p, comps)
-        else:
-            return p
-    return None
-
-
 def findBeacon(comps):
     for comp in comps:
         if hasVertices(comp, 3) and not hasChild(comp) and hasParent(comp):
-            c = cv2.convexHull(comp[0])
+            # c = cv2.convexHull(comp[0])
+            c = comp[0]
             area_triangle = cv2.contourArea(c)
 
             area_outer = 0
@@ -84,6 +69,7 @@ def findBeacon(comps):
                     break
 
                 area_outer = cv2.contourArea(parent[0])
+                # print(area_outer/area_triangle)
 
             if area_range[0] < (area_outer/area_triangle) < area_range[1]:
                 return parent
@@ -91,22 +77,20 @@ def findBeacon(comps):
 
 
 def checkFrame(frame):
-    frame = imutils.resize(frame, width=800)
+    frame = imutils.resize(frame, width=1280)
 
     height, width, channels = frame.shape
     centerX = int(width/2)
     centerY = int(height/2)
 
-    frame = cv2.GaussianBlur(frame, (5, 5), 0)
-    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    # if debug:
-    #     show(grey)
+    blur = cv2.GaussianBlur(frame, (9, 9), 0)
+    grey = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
 
-    mask = cv2.Canny(grey, 15, 70)
+    mask = cv2.Canny(grey, 20, 70)
     if debug:
         show(mask)
 
-    mask = cv2.dilate(mask, None, iterations=1)
+    mask = cv2.dilate(mask, None, iterations=2)
     mask = cv2.erode(mask, None, iterations=1)
     if debug:
         show(mask)
@@ -114,8 +98,6 @@ def checkFrame(frame):
     __, cnts, hierarchy = cv2.findContours(mask, cv2.RETR_TREE,
                                            cv2.CHAIN_APPROX_SIMPLE)
 
-    # TMP Center Circle
-    # cv2.circle(frame, (centerX, centerY), 10, (255, 255, 255), -1)
     try:
         comps = list(zip(cnts, hierarchy[0]))
     except TypeError:
@@ -170,14 +152,16 @@ if __name__ == '__main__':
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument('-i', '--image', help='path to a image file')
     group.add_argument('-v', '--video', help='path to a video file')
+    group.add_argument('-c', '--webcam', dest='video', type=int,
+                       help='camera interface number')
     args = vars(ap.parse_args())
 
     debug = args['debug']
 
     if args.get('outvid'):
         fourcc = cv2.VideoWriter_fourcc(*'DIVX')
-        # out = cv2.VideoWriter(args['outvid'], fourcc, 30.0, (1280, 720))
-        out = cv2.VideoWriter(args['outvid'], fourcc, 30.0, (800, 450))
+        out = cv2.VideoWriter(args['outvid'], fourcc, 30.0, (1280, 720))
+        # out = cv2.VideoWriter(args['outvid'], fourcc, 30.0, (800, 450))
         print('activate')
 
     if args.get('image'):
@@ -209,8 +193,10 @@ if __name__ == '__main__':
             if state < 0:
                 frame_error_count += 1
 
+        cap.release()
         print(f'Total played frames: {frame_count}')
         print(f'Frames without beacon: {frame_error_count}')
-        print(f'Percentage OK: {((frame_count-frame_error_count)/frame_count)*100}%')
+        print('Percentage OK: {}%'
+              .format(((frame_count-frame_error_count)/frame_count)*100))
 
     cv2.destroyAllWindows()
