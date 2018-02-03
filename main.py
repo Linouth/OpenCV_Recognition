@@ -25,50 +25,66 @@ def show(im, win='img', wait=0):
         sys.exit(0)
 
 
-def hasVertices(comp, vertices):
-    c = cv2.convexHull(comp[0])
-    # c = comp[0]
+class Contour:
+    def __init__(self, c, h):
+        self.c = c
+        self.h = h
 
-    peri = cv2.arcLength(c, True)
-    approx = cv2.approxPolyDP(c, 0.05 * peri, True)
+        self.child = h[2]
+        self.parent = h[3]
 
-    if len(approx) == vertices:
+    def hasVertices(self, vertices):
+        peri = cv2.arcLength(self.c, True)
+        approx = cv2.approxPolyDP(self.c, 0.05 * peri, True)
+
+        if len(approx) == vertices:
+            return True
+        return False
+
+    def hasChild(self):
+        if self.h[2] < 0:
+            return False
         return True
-    return False
+
+    def hasParent(self):
+        if self.h[3] < 0:
+            return False
+        return True
+
+    def getArea(self):
+        return cv2.contourArea(self.c)
+
+    def draw(self, frame, col=(255, 255, 255)):
+        return cv2.drawContours(frame, [self.c], -1, col, 2)
+
+    def getCenter(self):
+        M = cv2.moments(self.c)
+        cX = int(M['m10'] / M['m00'])
+        cY = int(M['m01'] / M['m00'])
+
+        return cX, cY
+
+    @staticmethod
+    def findContours(image, struc=cv2.RETR_TREE, simp=cv2.CHAIN_APPROX_SIMPLE):
+        __, cnts, hierarchy = cv2.findContours(image, struc, simp)
+        comps = list(zip(cnts, hierarchy[0]))
+        return [Contour(comp[0], comp[1]) for comp in comps]
 
 
-def hasChild(comp):
-    h = comp[1]
-
-    if h[2] < 0:
-        return False
-    return True
-
-
-def hasParent(comp):
-    h = comp[1]
-
-    if h[3] < 0:
-        return False
-    return True
-
-
-def findBeacon(comps):
-    for comp in comps:
-        if hasVertices(comp, 3) and not hasChild(comp) and hasParent(comp):
-            # c = cv2.convexHull(comp[0])
-            c = comp[0]
-            area_triangle = cv2.contourArea(c)
+def findBeacon(cnts):
+    for cnt in cnts:
+        if cnt.hasVertices(3) and not cnt.hasChild() and cnt.hasParent():
+            area_triangle = cnt.getArea()
 
             area_outer = 0
-            parent = comp
-            while not (area_range[0] < (area_outer/area_triangle) < area_range[1]) and hasParent(parent):
+            parent = cnt
+            while not (area_range[0] < (area_outer/area_triangle) < area_range[1]) and parent.hasParent():
                 # parent = findNextShape(parent, comps)
-                parent = comps[parent[1][3]]
+                parent = cnts[parent.parent]
                 if not parent:
                     break
 
-                area_outer = cv2.contourArea(parent[0])
+                area_outer = parent.getArea()
                 # print(area_outer/area_triangle)
 
             if area_range[0] < (area_outer/area_triangle) < area_range[1]:
@@ -95,28 +111,16 @@ def checkFrame(frame):
     if debug:
         show(mask)
 
-    __, cnts, hierarchy = cv2.findContours(mask, cv2.RETR_TREE,
-                                           cv2.CHAIN_APPROX_SIMPLE)
+    cnts = Contour.findContours(mask)
+    beacon = findBeacon(cnts)
 
-    try:
-        comps = list(zip(cnts, hierarchy[0]))
-    except TypeError:
-        return 0, -1
-
-    beacon = findBeacon(comps)
     if beacon:
-        cv2.drawContours(frame, [beacon[0]], -1, (0, 255, 0), 2)
-        M = cv2.moments(beacon[0])
-        try:
-            cX = int(M['m10'] / M['m00'])
-            cY = int(M['m01'] / M['m00'])
-        except ZeroDivisionError:
-            print('ZeroDivide')
+        beacon.draw(frame, col=(0, 255, 0))
 
+        cX, cY = beacon.getCenter()
         cv2.circle(frame, (cX, cY), 7, (255, 255, 255), -1)
 
         text = ''
-
         if cY < centerY:
             # Above center
             text += 'Top '
