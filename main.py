@@ -65,9 +65,9 @@ class Contour:
         return cX, cY
 
     @staticmethod
-    def findContours(image, struc=cv2.RETR_TREE, simp=cv2.CHAIN_APPROX_SIMPLE):
-        __, cnts, hierarchy = cv2.findContours(image, struc, simp)
-        comps = list(zip(cnts, hierarchy[0]))
+    def findContours(image, mode=cv2.RETR_TREE, apprx=cv2.CHAIN_APPROX_SIMPLE):
+        __, cnts, hierarchy = cv2.findContours(image, mode, apprx)
+        comps = zip(cnts, hierarchy[0])
         return [Contour(comp[0], comp[1]) for comp in comps]
 
 
