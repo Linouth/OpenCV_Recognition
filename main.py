@@ -7,7 +7,7 @@ import sys
 
 # min_area = 200
 # area_range = (6.5, 8.5)
-area_range = (13, 21)
+area_range = (13, 18)
 
 debug = False
 out = None
@@ -173,7 +173,7 @@ if __name__ == '__main__':
         im, state = checkFrame(im)
 
         show(im)
-    elif args.get('video'):
+    elif args.get('video') == None:
         frame_count = 0
         frame_error_count = 0
         cap = cv2.VideoCapture(args['video'])
@@ -198,8 +198,8 @@ if __name__ == '__main__':
                 frame_error_count += 1
 
         cap.release()
-        print(f'Total played frames: {frame_count}')
-        print(f'Frames without beacon: {frame_error_count}')
+        print('Total played frames: {}'.format(frame_count))
+        print('Frames without beacon: {}'.format(frame_error_count))
         print('Percentage OK: {}%'
               .format(((frame_count-frame_error_count)/frame_count)*100))
 
