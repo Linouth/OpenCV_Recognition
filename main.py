@@ -93,7 +93,7 @@ def findBeacon(cnts):
 
 
 def checkFrame(frame):
-    frame = imutils.resize(frame, width=1280)
+    frame = imutils.resize(frame, width=400)
 
     height, width, channels = frame.shape
     centerX = int(width/2)
@@ -156,6 +156,8 @@ if __name__ == '__main__':
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument('-i', '--image', help='path to a image file')
     group.add_argument('-v', '--video', help='path to a video file')
+    group.add_argument('-p', '--picam', action='store_true',
+                       help='raspberry pi camera module')
     group.add_argument('-c', '--webcam', dest='video', type=int,
                        help='camera interface number')
     args = vars(ap.parse_args())
@@ -164,8 +166,9 @@ if __name__ == '__main__':
 
     if args.get('outvid'):
         fourcc = cv2.VideoWriter_fourcc(*'DIVX')
-        out = cv2.VideoWriter(args['outvid'], fourcc, 30.0, (1280, 720))
+        # out = cv2.VideoWriter(args['outvid'], fourcc, 30.0, (1280, 720))
         # out = cv2.VideoWriter(args['outvid'], fourcc, 30.0, (800, 450))
+        out = cv2.VideoWriter(args['outvid'], fourcc, 30.0, (400, 300))
         print('activate')
 
     if args.get('image'):
@@ -173,7 +176,7 @@ if __name__ == '__main__':
         im, state = checkFrame(im)
 
         show(im)
-    elif args.get('video') == None:
+    elif args.get('video') != None:
         frame_count = 0
         frame_error_count = 0
         cap = cv2.VideoCapture(args['video'])
@@ -202,5 +205,65 @@ if __name__ == '__main__':
         print('Frames without beacon: {}'.format(frame_error_count))
         print('Percentage OK: {}%'
               .format(((frame_count-frame_error_count)/frame_count)*100))
+    elif args.get('picam'):
+        from picamera.array import PiRGBArray
+        from picamera import PiCamera
+        from imutils.video.pivideostream import PiVideoStream
+        from imutils.video import FPS
+
+        vs = PiVideoStream(resolution=(800,464)).start()
+        time.sleep(2)
+        fps = FPS().start()
+
+        i = 0
+        while True or i < 200:
+            i += 1
+            frame = vs.read()
+            frame = imutils.resize(frame, width=800)
+
+            #im, state = checkFrame(frame)
+
+            #show(im, wait=1)
+            cv2.imshow('frame', frame)
+            key = cv2.waitKey(1) & 0xff
+
+            if key == ord('q'):
+                break
+
+            print(i)
+
+
+            fps.update()
+
+        fps.stop()
+        vs.stop()
+
+        print('Framerate', fps.fps())
+
+        '''
+        #res = (1280, 720)
+        res = (800, 450)
+        camera = PiCamera()
+        camera.resolution = res
+        camera.framerate = 30
+        rawCapture = PiRGBArray(camera, size=res)
+
+        time.sleep(0.1)
+        i = 0
+
+        for frame in camera.capture_continuous(rawCapture, format='bgr', use_video_port=True):
+                i += 1
+                image = frame.array
+
+                cv2.imshow('Frame', image)
+                key = cv2.waitKey(1) & 0xff
+
+                rawCapture.truncate(0)
+
+                if key == ord('q'):
+                    break
+                print('FRAME', i)
+        '''
+        
 
     cv2.destroyAllWindows()
