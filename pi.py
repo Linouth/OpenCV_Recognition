@@ -9,13 +9,20 @@ from imutils.video import FPS
 from picamera.array import PiRGBArray
 from picamera import PiCamera
 
+import dronelink
+
 
 resolution = (800, 464)
 col_lower = (10, 0, 160)
 col_upper = (105, 75, 255)
 
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+logger.setLevel(logging.INFO)
 
 
 def show(frame):
@@ -70,7 +77,7 @@ class Tracker():
             im2, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
             if len(contours) > 0:
-                cv2.drawContours(frame, contours, -1, 255, 3)
+                # cv2.drawContours(frame, contours, -1, 255, 3)
 
                 # Find largest contour
                 c = max(contours, key=cv2.contourArea)
@@ -113,35 +120,50 @@ class Tracker():
     def get_fps(self):
         return self.fps.fps()
 
-
+class tmp():
+    def __init__(self):
+        self.vehicle = None
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Do some OpenCV magic')
     parser.add_argument('-r', '--render', action='store_true', help='enable rendering')
-    parser.add_argument('-c', '--connect')
+    parser.add_argument('-v', '--verbose', action='store_true', help='enable debug messages')
+
+    droneparse = parser.add_argument_group('Drone specific arguments')
+    droneparse.add_argument('-c', '--connect', help='drone control disabled without connect string (e.g. /dev/ttyUSB0)')
+    droneparse.add_argument('-b', '--baud', default=57600, help='baudrate for serial')
+    droneparse.add_argument('--alt', default=2, help='flying altitude in meters')
+
     args = parser.parse_args()
 
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+
+    # Initialize vehicle if connection string is given
+    link = dronelink.Link(args.connect, baud=args.baud, alt=args.alt)
+    if link.vehicle:
+        link.arm_and_takeoff()
+        time.sleep(1)
 
     # Initialize and start tracker class
     tracker = Tracker(col_lower, col_upper, resolution=resolution, render=args.render)
     tracker.start()
 
-
-    # if args.connect:
-        # connect()
-
     try:
+        logging.info('Running')
         while True:
-            logging.info('Running')
-
             x, y = tracker.get_center()
-            logging.log('x: {}, y: {}'.format(x, y))
-            time.sleep(0.1)
+            # logging.info('x: {}, y: {}'.format(x, y))
+
+            if link.vehicle:
+                link.stabelize_alt(args.alt)
+                link.adjust_to_coords(x, y, resolution)
+
     except KeyboardInterrupt:
-        print('Closing')
+        logging.info('Closing')
     finally:
         tracker.stop()
-        print('framerate: {}'.format(tracker.get_fps()))
-        vehicle.mode = VehicleMode('LAND')
-        vehicle.close()
+        logging.info('framerate: {}'.format(tracker.get_fps()))
+        if link.vehicle:
+            link.close()
