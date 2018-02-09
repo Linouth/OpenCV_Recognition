@@ -1,17 +1,21 @@
-import time
-import cv2
 import argparse
+import cv2
 from threading import Thread
+import time
+import logging
 
-from picamera.array import PiRGBArray
-from picamera import PiCamera
 from imutils.video.pivideostream import PiVideoStream
 from imutils.video import FPS
+from picamera.array import PiRGBArray
+from picamera import PiCamera
 
 
 resolution = (800, 464)
 col_lower = (10, 0, 160)
 col_upper = (105, 75, 255)
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 
 def show(frame):
@@ -44,6 +48,7 @@ class Tracker():
         self.render = render
         self.running = True
 
+    '''Start thread and fps counter'''
     def start(self):
         t = Thread(target=self.update, args=())
         t.daemon = True
@@ -52,6 +57,7 @@ class Tracker():
         self.fps.start()
         return self
 
+    '''Update cx_center and cy_center using multithreading'''
     def update(self):
         while self.running:
             # Get frame from camera
@@ -93,55 +99,44 @@ class Tracker():
 
         pass
 
-    ''' Return the x and y coordinates of the tracked area relative to the center of the image '''
-    def get_center(self):
-        return self.cx_center, self.cy_center
-
+    '''Stop the thread and safely exit'''
     def stop(self):
         self.stopped = False
         self.vs.stop()
         self.fps.stop()
 
+    '''Return the x and y coordinates of the tracked area relative to the center of the image'''
+    def get_center(self):
+        return self.cx_center, self.cy_center
+
+    '''Return frames per second analized'''
     def get_fps(self):
         return self.fps.fps()
+
+
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Do some OpenCV magic')
     parser.add_argument('-r', '--render', action='store_true', help='enable rendering')
-    parser.add_argument('-c', '--connect', required=True)
+    parser.add_argument('-c', '--connect')
     args = parser.parse_args()
 
+
     # Initialize and start tracker class
-    tracker = Tracker(col_lower, col_upper, resolution=resolutionrender=args.render)
+    tracker = Tracker(col_lower, col_upper, resolution=resolution, render=args.render)
     tracker.start()
 
-    vehicle = connect(args.connect, baud=57600, wait_ready=True)
 
-    while not vehicle.is_armable:
-        print('Waiting for vehicle to initialize')
-        time.sleep(1)
-
-    print('Arming')
-    vehicle.mode = VehicleMode('GUIDED')
-    vehicle.armed = True
-
-    while not vehicle.armed:
-        print('Waiting for arming')
-        time.sleep(1)
-
-    print('Taking off')
-    vehicle.simple_takeoff(altitude)
+    # if args.connect:
+        # connect()
 
     try:
         while True:
-            print('Alt:', vehicle.location.global_relative_frame.alt)
-            if vehicle.location.global_relative_frame.alt >= altitude*0.95:
-                print('Altitude reached!')
-                break
+            logging.info('Running')
 
             x, y = tracker.get_center()
-            print('x: {}, y: {}'.format(x, y))
+            logging.log('x: {}, y: {}'.format(x, y))
             time.sleep(0.1)
     except KeyboardInterrupt:
         print('Closing')
